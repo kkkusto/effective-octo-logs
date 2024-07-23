@@ -44,3 +44,55 @@ if __name__ == "__main__":
     main_job = input("Enter the main_job: ")
     dept_id = input("Enter the dept_id: ")
     fetch_data_from_oracle(main_job, dept_id)
+
+
+
+import cx_Oracle
+import pandas as pd
+
+def fetch_data_from_oracle(main_job, dept_id):
+    try:
+        # Establish the database connection
+        dsn_tns = cx_Oracle.makedsn('your_host', 'your_port', service_name='your_service_name')
+        connection = cx_Oracle.connect(user='your_username', password='your_password', dsn=dsn_tns)
+        
+        # Create a cursor object
+        cursor = connection.cursor()
+        
+        # Define the query with parameters
+        query = """
+        SELECT job_id, PARM_NAME, PARM_VAL
+        FROM your_table_name
+        WHERE main_job = :main_job AND dept_id = :dept_id
+        """
+        
+        # Execute the query with the provided parameters
+        cursor.execute(query, main_job=main_job, dept_id=dept_id)
+        
+        # Fetch all the results
+        results = cursor.fetchall()
+        
+        # Create a DataFrame from the fetched data
+        df = pd.DataFrame(results, columns=['job_id', 'PARM_NAME', 'PARM_VAL'])
+        
+        # Pivot the DataFrame to set PARM_NAME as index and job_id as columns
+        pivot_df = df.pivot(index='PARM_NAME', columns='job_id', values='PARM_VAL')
+        
+        # Print the DataFrame
+        print(pivot_df)
+        
+    except cx_Oracle.DatabaseError as e:
+        print(f"Database error occurred: {e}")
+    
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+if __name__ == "__main__":
+    main_job = input("Enter the main_job: ")
+    dept_id = input("Enter the dept_id: ")
+    fetch_data_from_oracle(main_job, dept_id)
+

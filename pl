@@ -1,51 +1,46 @@
-import pandas as pd
+import cx_Oracle
 
-def parse_log_file_to_dataframe(file_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    job_blocks = []
-    current_block = None
-    capture = False
-
-    for i, line in enumerate(lines):
-        if "sequence incremented" in line:
-            job_id_line = lines[i + 1].strip()
-            job_id = job_id_line.split(':')[1].strip()
-            current_block = {'job_id': job_id, 'parameters': {}}
-            capture = False
-        elif "parameters to job" in line:
-            capture = True
-        elif capture:
-            if "************" in line:
-                capture = False
-                job_blocks.append(current_block)
-                current_block = None
-            else:
-                param_line = line.strip()
-                if "=" in param_line:
-                    param_name, param_value = param_line.split("=", 1)
-                    current_block['parameters'][param_name.strip()] = param_value.strip()
-
-    # Collect all unique parameter names
-    all_parameters = set()
-    for job in job_blocks:
-        all_parameters.update(job['parameters'].keys())
-
-    # Create a DataFrame
-    df = pd.DataFrame(columns=[job['job_id'] for job in job_blocks], index=all_parameters)
-
-    for job in job_blocks:
-        job_id = job['job_id']
-        for param_name, param_value in job['parameters'].items():
-            df.at[param_name, job_id] = param_value
-
-    df = df.fillna('')  # Fill NaN with empty strings for better display
-
-    # Display the DataFrame
-    import ace_tools as tools; tools.display_dataframe_to_user(name="Job Parameters DataFrame", dataframe=df)
+def fetch_data_from_oracle(main_job, dept_id):
+    try:
+        # Establish the database connection
+        dsn_tns = cx_Oracle.makedsn('your_host', 'your_port', service_name='your_service_name')
+        connection = cx_Oracle.connect(user='your_username', password='your_password', dsn=dsn_tns)
+        
+        # Create a cursor object
+        cursor = connection.cursor()
+        
+        # Define the query with parameters
+        query = """
+        SELECT *
+        FROM your_table_name
+        WHERE main_job = :main_job AND dept_id = :dept_id
+        """
+        
+        # Execute the query with the provided parameters
+        cursor.execute(query, main_job=main_job, dept_id=dept_id)
+        
+        # Fetch all the results
+        results = cursor.fetchall()
+        
+        # Print the column names
+        columns = [col[0] for col in cursor.description]
+        print(columns)
+        
+        # Print the results
+        for row in results:
+            print(row)
+        
+    except cx_Oracle.DatabaseError as e:
+        print(f"Database error occurred: {e}")
     
-    return df
+    finally:
+        # Close the cursor and connection
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
-# Example usage
-df = parse_log_file_to_dataframe('path_to_your_log_file.log')
+if __name__ == "__main__":
+    main_job = input("Enter the main_job: ")
+    dept_id = input("Enter the dept_id: ")
+    fetch_data_from_oracle(main_job, dept_id)

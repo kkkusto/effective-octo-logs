@@ -1,6 +1,6 @@
 import pandas as pd
 
-def parse_log_file(file_path):
+def parse_log_file_to_dataframe(file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
 
@@ -12,7 +12,7 @@ def parse_log_file(file_path):
         if "sequence incremented" in line:
             job_id_line = lines[i + 1].strip()
             job_id = job_id_line.split(':')[1].strip()
-            current_block = {'job_id': job_id, 'parameters': []}
+            current_block = {'job_id': job_id, 'parameters': {}}
             capture = False
         elif "parameters to job" in line:
             capture = True
@@ -22,33 +22,30 @@ def parse_log_file(file_path):
                 job_blocks.append(current_block)
                 current_block = None
             else:
-                current_block['parameters'].append(line.strip())
+                param_line = line.strip()
+                if "=" in param_line:
+                    param_name, param_value = param_line.split("=", 1)
+                    current_block['parameters'][param_name.strip()] = param_value.strip()
 
-    all_jobs_data = []
+    # Collect all unique parameter names
+    all_parameters = set()
+    for job in job_blocks:
+        all_parameters.update(job['parameters'].keys())
+
+    # Create a DataFrame
+    df = pd.DataFrame(columns=[job['job_id'] for job in job_blocks], index=all_parameters)
+
     for job in job_blocks:
         job_id = job['job_id']
-        parameters = job['parameters']
-        job_data = {'job_id': [], 'parameter': [], 'value': []}
-        
-        for param in parameters:
-            if '=' in param:
-                key, value = param.split('=', 1)
-                job_data['job_id'].append(job_id)
-                job_data['parameter'].append(key.strip())
-                job_data['value'].append(value.strip())
-        
-        job_df = pd.DataFrame(job_data)
-        all_jobs_data.append(job_df)
-    
-    # Merge all job DataFrames into a single DataFrame
-    if all_jobs_data:
-        final_df = pd.concat(all_jobs_data, ignore_index=True)
-    else:
-        final_df = pd.DataFrame(columns=['job_id', 'parameter', 'value'])
+        for param_name, param_value in job['parameters'].items():
+            df.at[param_name, job_id] = param_value
 
-    return final_df
+    df = df.fillna('')  # Fill NaN with empty strings for better display
+
+    # Display the DataFrame
+    import ace_tools as tools; tools.display_dataframe_to_user(name="Job Parameters DataFrame", dataframe=df)
+    
+    return df
 
 # Example usage
-file_path = 'path_to_your_log_file.log'
-final_df = parse_log_file(file_path)
-import ace_tools as tools; tools.display_dataframe_to_user(name="Merged Job Parameters", dataframe=final_df)
+df = parse_log_file_to_dataframe('path_to_your_log_file.log')
